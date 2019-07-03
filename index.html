@@ -1,0 +1,388 @@
+
+<!--need to know class-->
+
+<html>
+<head>
+    <title> Space Invaders </title>
+    <style>
+        h1 {
+            margin-bottom: 5vh
+        }
+
+        canvas {
+            height: 70vh
+        }
+    </style>
+</head>
+
+<body style="text-align: center">
+    <h1> Space Invaders </h1>
+    <canvas id='display' width="500" height="500"></canvas>
+</body>
+<!--<script src='main.js'></script>--></html>
+<script>
+    let display, displayContext, gameStart, me, spriteSheet
+    let citySprite, invaderSprite, meSprite
+    let aliens, aliensRow, aliensDirection, bullets
+    let frameCount = 0
+    let score = 0
+    let lives = 3
+    let blink = false
+    let blinkTime = 3
+    let blinkShow = false
+    display = document.getElementById('display')
+    displayContext = display.getContext('2d')
+    
+    
+    loadImage()
+    function loadImage (){
+        spriteSheet = new Image()
+        spriteSheet.src = 'invaders.png'
+        spriteSheet.addEventListener('load', function(){
+            invaderSprite = [
+                [new Sprite(spriteSheet, 0, 0, 22, 16), new Sprite(spriteSheet, 0, 16, 22, 16)],
+                [new Sprite(spriteSheet, 22, 0, 16, 16), new Sprite(spriteSheet, 22, 16, 16, 16)],
+                [new Sprite(spriteSheet, 38, 0, 24, 16), new Sprite(spriteSheet, 38, 16, 24, 16)]
+            ]
+            meSprite = new Sprite(spriteSheet, 62, 0, 22, 16)
+            citySprite = new Sprite(spriteSheet, 84, 8, 36, 24)
+            init()
+        })
+    }
+    
+    function init(){
+        me = {
+            x: display.width /2,
+            y: display.height - 30,
+            show: meShow,
+            moveLeft: false,
+            moveRight: false,
+            speedX: 8
+        }
+        aliens = []
+        aliensRow = [ 1, 0, 0, 2, 2]
+        aliensDirection = 1
+        aliensAnimate = 0
+        aliensVelocity = 25
+        for( let i = 0; i < aliensRow.length; i ++ ){
+            for ( let c = 0; c < 10; c ++ ){
+                let x = 30 + 30*c
+                x = i == 0 ? 36 + 30*c : x
+                x = i == 1 || i == 2 ? 32 + 30*c : x
+                let y = 70 + 22*i
+                aliens.push( new Aliens( x, y, aliensRow[i] ))
+            }
+        }
+        
+        bullets = []
+        
+        city = {
+            locationX : [ 100, 200, 300, 400 ],
+            x : 0,
+            y : display.height - 100,
+            w : display.width,
+            h : citySprite.h
+        }
+        
+        citySetup()
+        gameLoop()
+    }
+    
+    function gameLoop(){
+        gameStart = requestAnimationFrame( gameLoop )
+        frameCount ++
+        backgroundShow()
+        meShow()
+        meUpdate()
+        aliensShow()
+        aliensUpdate()
+        bulletsShow()
+        bulletsUpdate()
+        cityShow()
+        scoreShow()
+        livesShow()
+        blinkUpdate()
+        
+    }
+    
+    function backgroundShow(){
+        displayContext.fillStyle = 'black'
+        displayContext.fillRect( 0, 0, display.width, display.height )
+    }
+    
+    function meShow(){
+        if( blink ){
+            if( frameCount % 3 == 0 ){
+                blinkShow = blinkShow == true ? false : true
+            }
+            if( blinkShow ){
+                drawSprite( meSprite, me.x, me.y )
+            }
+            
+        } else {
+            drawSprite( meSprite, me.x, me.y )
+        }
+    }
+    
+    function meUpdate(){
+        if( me.moveLeft ){
+            me.x -= me.speedX
+        }
+        if( me.moveRight ){
+            me.x += me.speedX
+        }
+        if (me.x < 0) {
+            me.x = 0
+        }
+        if (me.x > display.width - 22) {
+            me.x = display.width - 22
+        }
+    }
+    
+    function aliensShow(){
+        for( let i = 0; i < aliens.length; i ++ ){
+            let a = aliens[i]
+            drawSprite( invaderSprite[a.invader][aliensAnimate], a.x, a.y )
+        }
+    }
+    
+    function aliensUpdate(){
+        if( frameCount % 30 == 0){
+            aliensAnimate = aliensAnimate == 0 ? 1 : 0
+        }
+        if( frameCount % 60 == 0){
+            let xList = []
+            let yList = []
+            let min, max, maxY
+            for( let i = 0; i < aliens.length; i ++ ){
+                aliens[i].x += aliensVelocity * aliensDirection
+                xList.push(aliens[i].x)
+                yList.push( aliens[i].y )
+            }
+            
+            max = Math.max( ...xList )
+            min = Math.min( ...xList )
+            maxY = Math.max( ...yList )
+            if( max >= 475 || min < 10 ) {
+                aliensDirection *= -1
+                for(let i = 0; i < aliens.length; i ++ ){
+                    aliens[i].x += aliensVelocity * aliensDirection
+                    aliens[i].y += 30
+                }
+                aliensVelocity += 5
+            }
+            if( maxY >= city.y - 2 ){
+                gameOver()
+            }
+            
+            
+        }
+    }
+    
+    function shootingAliens(){
+        bullets.push( new Bullets( me.x + meSprite.w/2 - 1, me.y -4, 2, 4, 'red', - 10 ))
+    }
+    
+    function bulletsShow(){
+        for(let i = 0; i < bullets.length; i ++ ){
+            let b = bullets[i]
+            displayContext.fillStyle = b.c 
+            displayContext.fillRect( b.x, b.y, b.w, b.h )
+        }
+    }
+    
+    function bulletsUpdate(){
+        for( let i = 0; i < bullets.length; i ++ ){
+            let b = bullets[i]
+            b.y += b.v
+            if( b.y < 60 || b.y > display.height ){
+                bullets.splice( i, 1)
+            }
+            for( let j = 0; j < aliens.length; j ++ ){
+                let a = aliens[j]
+                let aw = invaderSprite[a.invader][0].w
+                let ah = invaderSprite[a.invader][0].h
+                if( isCollied( b.x, b.y, b.w, b.h, a.x, a.y, aw, ah )){
+                    bullets.splice( i, 1)
+                    aliens.splice( j, 1 )
+                    score ++
+                    if( score == 50 ){
+                        gameEnd()
+                    }
+                }
+            }
+            if( b.y + b.h > city.y && b.y < city.y + city.h ){
+                if( isCityHit(b.x, b.y)){
+                    bullets.splice( i, 1 )
+                }
+            }
+            if( isCollied(b.x, b.y, b.w, b.h, me.x, me.y, 22, 16 )){
+                if( !blink ){
+                    lives --
+                    if( lives == 0 ){
+                        gameOver()
+                    }
+                    blink = true
+                }
+            }
+            
+        }
+
+        if( Math.random() < 0.1 && aliens.length > 0 ){
+            let x = Math.floor( Math.random() * ( aliens.length - 1 ))
+            let a = aliens[x]
+            
+            for( let i = 0; i < aliens.length; i ++ ){
+                let aa = aliens[i]
+                if(isCollied( a.x, a.y, a.w, 100, aa.x, aa.y, aa.w, aa.h )){
+                    a = aa
+                }
+            }
+            
+            
+            bullets.push( new Bullets( a.x + a.w/2 , a.y + a.h, 2, 4, 'red', 10 ))
+        }
+    }
+    
+    function citySetup(){
+        city.img = document.createElement('canvas')
+        city.img.width = display.width
+        city.img.height = city.h
+        city.cityContext = city.img.getContext('2d')
+        for( let i = 0; i < city.locationX.length; i ++ ){
+            city.cityContext.drawImage( citySprite.img, citySprite.x, citySprite.y, citySprite.w, citySprite.h, city.locationX[i] - 20, 0, citySprite.w, citySprite.h )
+        }
+    }
+    
+    function cityShow(){
+        displayContext.drawImage( city.img, 0, display.height - 100 )
+    }
+    
+    function isCityHit( x, y ){
+        y = y - city.y
+        let imageData = city.cityContext.getImageData( x, y, 1, 1)
+        if( imageData.data[3] !== 0 ){
+            genDamage( x, y )
+            return true
+        }
+        return false
+    }
+    
+    function genDamage(x, y){
+        x = Math.floor(x / 2) * 2;
+        y = Math.floor(y / 2) * 2;
+        // draw dagame effect to canva
+        city.cityContext.clearRect(x - 2, y - 2, 4, 4);
+        city.cityContext.clearRect(x + 2, y - 4, 2, 4);
+        city.cityContext.clearRect(x + 4, y, 2, 2);
+        city.cityContext.clearRect(x + 2, y + 2, 2, 2);
+        city.cityContext.clearRect(x - 4, y + 2, 2, 2);
+        city.cityContext.clearRect(x - 6, y, 2, 2);
+        city.cityContext.clearRect(x - 4, y - 4, 2, 2);
+        city.cityContext.clearRect(x - 2, y - 6, 2, 2);
+    }
+    
+    function scoreShow(){
+        displayContext.fillStyle = 'white'
+        displayContext.font = '15px Arial'
+        displayContext.fillText( 'Your score : ' + score, 30, 35 )
+    }
+    
+    function livesShow(){
+        for( let i = 0; i < lives; i ++ ){
+            drawSprite( meSprite, display.width - 100 + i*26, 20)
+        }
+    }
+    
+    function blinkUpdate(){
+        if( blink ){
+            if( frameCount % 30 == 0 ){
+                blinkTime --
+            }
+            if( blinkTime == 0){
+                blink = false
+                blinkTime = 3
+                blinkShow = false
+            }
+        }
+    }
+    
+    function gameOver(){
+        cancelAnimationFrame( gameStart )
+        displayContext.fillStyle = 'white'
+        displayContext.font = '30px Arial'
+        displayContext.fillText( 'Game Over', display.width/2 - 80, display.height/2 )
+    }
+
+    function gameEnd(){
+        cancelAnimationFrame( gameStart )
+        backgroundShow()
+        meShow()
+        cityShow()
+        scoreShow()
+        livesShow()
+        displayContext.fillStyle = 'white'
+        displayContext.font = '30px Arial'
+        displayContext.fillText( 'You Win!', display.width/2 - 60, display.height/2 )
+    }
+    
+    // ------------ common function
+    
+
+    function Sprite(img, x, y, w, h) {
+        this.img = img;
+        this.x = x;
+        this.y = y;
+        this.w = w;
+        this.h = h;
+    }
+    
+    function Aliens( x, y, invaderType ){
+        this.x = x
+        this.y = y
+        this.invader = invaderType
+        this.w = invaderSprite[invaderType][0].w
+        this.h = invaderSprite[invaderType][0].h
+    }
+    
+    function Bullets( x, y, w, h, c, v ){
+        this.x = x
+        this.y = y
+        this.w = w
+        this.h = h
+        this.c = c 
+        this.v = v
+    }
+    
+    function drawSprite( sprite, x, y ) {
+        displayContext.drawImage( sprite.img, sprite.x, sprite.y, sprite.w, sprite.h, x, y, sprite.w, sprite.h)
+    }
+    
+    function isCollied( ax, ay, aw, ah, bx, by, bw, bh ){
+        return ax + aw > bx && ax < bx + bw && ay + ah > by && ay < by + bh
+    }
+     
+    document.addEventListener('keydown', function( event ){
+        if( event.keyCode == 37){
+            me.moveLeft = true
+            me.moveRight = false
+        }
+        if( event.keyCode == 39){
+            me.moveLeft = false
+            me.moveRight = true
+        }
+        if( event.keyCode == 32){
+            shootingAliens()
+        }
+    })
+    
+    document.addEventListener('keyup', function( event ){
+        if (event.keyCode == 37) {
+            me.moveLeft = false
+        }
+        if (event.keyCode == 39) {
+            me.moveRight = false
+        }
+    })
+    
+</script>
